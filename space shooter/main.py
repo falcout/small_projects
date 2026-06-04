@@ -1,5 +1,5 @@
 import pygame
-from random import randint, uniform
+from random import randint, uniform, shuffle
 from os.path import join
 
 class Player(pygame.sprite.Sprite):
@@ -151,13 +151,21 @@ def display_game_over():
 
     return restart_button, quit_button
 
-def game(state, start):
+def game(state, start, color):
+    # color setup
+    tar = None
+    trigger_color = False
+    colors = [c for c in pygame.colordict.THECOLORS.values() if sum(c[:3]) < 600]
+    shuffle(colors)
+
+    level = 0
+
     while state:
         dt = clock.tick() / 1000
         # event loop
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return
+                return True
             if event.type == star_event:
                 for _ in range(16):
                     Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, 0)), star_surf)
@@ -165,13 +173,22 @@ def game(state, start):
                 x, y = randint(0, WINDOW_WIDTH), randint(-200, -100)
                 meteor = Meteor(meteor_surf, (x, y), (all_sprites, meteor_sprites))
                 all_sprites.change_layer(meteor, 1)
+            if event.type == level_event:
+                tar = colors[level]
+                trigger_color = True
+                level+=1
+            if event.type == color_event and trigger_color:
+                color = color_fill(color, target=tar)
+                if color == tar:
+                    trigger_color = False
+                
 
         # update
         all_sprites.update(dt)
         state = collisions()
 
         # draw the game
-        screen.fill('#3a2e3f')
+        screen.fill(color)
         display_score((pygame.time.get_ticks() - start) // 100)
         all_sprites.draw(screen)
 
@@ -191,6 +208,8 @@ def over(boom, frame):
                     return True
                 if quit.collidepoint(event.pos):
                     return False
+            if event.type == pygame.KEYDOWN and (event.key == pygame.K_SPACE or event.key == pygame.K_RETURN):
+                return True
         
         # update
         boom += 40 * dt
@@ -208,14 +227,14 @@ def over(boom, frame):
 
         pygame.display.flip()
 
-def init_sprites():
-    global all_sprites, meteor_sprites, laser_sprites, player
-    all_sprites = pygame.sprite.LayeredUpdates()
-    meteor_sprites = pygame.sprite.Group()
-    laser_sprites = pygame.sprite.Group()
-    for _ in range(30):
-        Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, WINDOW_HEIGHT)), star_surf)
-    player = Player(all_sprites)
+def color_fill(color=pygame.Color(58,46,63), speed=1, target=None):
+    if target:
+        target = pygame.Color(target)
+        r = color.r + speed if color.r < target.r else color.r - speed if color.r > target.r else target.r
+        g = color.g + speed if color.g < target.g else color.g - speed if color.g > target.g else target.g
+        b = color.b + speed if color.b < target.b else color.b - speed if color.b > target.b else target.b
+        return pygame.Color(r,g,b)
+    return color
 
 # general setup
 pygame.init()
@@ -240,15 +259,6 @@ damage_sound = pygame.mixer.Sound(join('audio', 'damage.ogg'))
 game_music = pygame.mixer.Sound(join('audio', 'game_music.wav'))
 game_music.set_volume(0.4)
 
-# sprites
-all_sprites = pygame.sprite.LayeredUpdates()
-meteor_sprites = pygame.sprite.Group()
-laser_sprites = pygame.sprite.Group()
-final_boom = pygame.sprite.Group()
-for _ in range(30):
-    Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, WINDOW_HEIGHT)), star_surf)
-player = Player(all_sprites)
-
 # custom events -> meteor event
 meteor_event = pygame.event.custom_type()
 pygame.time.set_timer(meteor_event, 500)
@@ -256,16 +266,37 @@ pygame.time.set_timer(meteor_event, 500)
 star_event = pygame.event.custom_type()
 pygame.time.set_timer(star_event, 1500)
 
+level_event = pygame.event.custom_type()
+pygame.time.set_timer(level_event, 10_000)
+
+color_event = pygame.event.custom_type()
+pygame.time.set_timer(color_event, 50)
+
 while running:
-    game_music.play(loops=-1)
-    start = pygame.time.get_ticks()
-    game(True, start)
+    # sprites
+    all_sprites = pygame.sprite.LayeredUpdates()
+    meteor_sprites = pygame.sprite.Group()
+    laser_sprites = pygame.sprite.Group()
+    final_boom = pygame.sprite.Group()
+    for _ in range(30):
+        Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, WINDOW_HEIGHT)), star_surf)
+    player = Player(all_sprites)
 
+    # reset sound
     pygame.mixer.stop()
-    final_explosion = 0
-    frozen_frame = screen.copy()
+    game_music.play(loops=-1)
 
-    running = over(final_explosion, frozen_frame)
-    init_sprites()
+    # game start
+    start = pygame.time.get_ticks()
+    color = color_fill()
+    if not game(True, start, color):
+        pygame.mixer.stop()
+        final_explosion = 0
+        frozen_frame = screen.copy()
+
+        # game is over
+        running = over(final_explosion, frozen_frame)
+    else:
+        running = False
 
 pygame.quit()

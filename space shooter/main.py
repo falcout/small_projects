@@ -139,15 +139,19 @@ def display_game_over():
 
     restart_surf = buttom_font.render('Restart', True, "#38d035")
     restart_rect = restart_surf.get_frect(midtop = over_rect.move(0,20).midbottom)
-    pygame.draw.rect(screen, '#f0f0f0', restart_rect.inflate(120,0).move(0,-5))
+    restart_button = restart_rect.inflate(120,0).move(0,-5)
+    pygame.draw.rect(screen, '#f0f0f0', restart_button)
     screen.blit(restart_surf, restart_rect)
 
     quit_surf = buttom_font.render('Quit', True, "#8b0a20")
     quit_rect = quit_surf.get_frect(midtop = restart_rect.move(0,18).midbottom)
-    pygame.draw.rect(screen, '#f0f0f0', restart_rect.inflate(120,0).move(0,50))
+    quit_button = restart_rect.inflate(120,0).move(0,50)
+    pygame.draw.rect(screen, '#f0f0f0', quit_button)
     screen.blit(quit_surf, quit_rect)
 
-def game(state):
+    return restart_button, quit_button
+
+def game(state, start):
     while state:
         dt = clock.tick() / 1000
         # event loop
@@ -168,18 +172,25 @@ def game(state):
 
         # draw the game
         screen.fill('#3a2e3f')
-        display_score(pygame.time.get_ticks() // 100)
+        display_score((pygame.time.get_ticks() - start) // 100)
         all_sprites.draw(screen)
 
 
         pygame.display.flip()
 
-def over(boom, score, frame):
+def over(boom, frame):
+    restart, quit = display_game_over()
+
     while True:
         dt = clock.tick() / 1000
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if restart.collidepoint(event.pos):
+                    return True
+                if quit.collidepoint(event.pos):
+                    return False
         
         # update
         boom += 40 * dt
@@ -193,10 +204,18 @@ def over(boom, score, frame):
         # screen.fill('#3a2e3f')
         screen.blit(pygame.transform.grayscale(frame), (0,0))
         final_boom.draw(screen)
-        display_score(score)
         display_game_over()
 
         pygame.display.flip()
+
+def init_sprites():
+    global all_sprites, meteor_sprites, laser_sprites, player
+    all_sprites = pygame.sprite.LayeredUpdates()
+    meteor_sprites = pygame.sprite.Group()
+    laser_sprites = pygame.sprite.Group()
+    for _ in range(30):
+        Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, WINDOW_HEIGHT)), star_surf)
+    player = Player(all_sprites)
 
 # general setup
 pygame.init()
@@ -220,7 +239,6 @@ explosion_sound = pygame.mixer.Sound(join('audio', 'explosion.wav'))
 damage_sound = pygame.mixer.Sound(join('audio', 'damage.ogg'))
 game_music = pygame.mixer.Sound(join('audio', 'game_music.wav'))
 game_music.set_volume(0.4)
-game_music.play(loops=-1)
 
 # sprites
 all_sprites = pygame.sprite.LayeredUpdates()
@@ -239,13 +257,15 @@ star_event = pygame.event.custom_type()
 pygame.time.set_timer(star_event, 1500)
 
 while running:
-    game(True)
+    game_music.play(loops=-1)
+    start = pygame.time.get_ticks()
+    game(True, start)
 
     pygame.mixer.stop()
     final_explosion = 0
-    score = pygame.time.get_ticks() // 100
     frozen_frame = screen.copy()
 
-    running = over(final_explosion, score, frozen_frame)
+    running = over(final_explosion, frozen_frame)
+    init_sprites()
 
 pygame.quit()

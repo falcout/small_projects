@@ -106,15 +106,13 @@ class Explosion(pygame.sprite.Sprite):
             self.kill()
 
 def collisions():
-    global running
-
     collision_sprites = pygame.sprite.spritecollide(player, meteor_sprites, True, pygame.sprite.collide_mask)
     if collision_sprites:
         damage_sound.play()
         player.life -= 1
     if player.life == 0:
         player.kill()
-        running = False
+        return False
      
     for laser in laser_sprites:
         collided_sprites = pygame.sprite.spritecollide(laser, meteor_sprites, True)
@@ -122,6 +120,8 @@ def collisions():
             laser.kill()
             Explosion(explosion_frames, laser.rect.midtop, all_sprites)
             explosion_sound.play()
+
+    return True
 
 def display_score(time):
     current_time = time
@@ -146,6 +146,57 @@ def display_game_over():
     quit_rect = quit_surf.get_frect(midtop = restart_rect.move(0,18).midbottom)
     pygame.draw.rect(screen, '#f0f0f0', restart_rect.inflate(120,0).move(0,50))
     screen.blit(quit_surf, quit_rect)
+
+def game(state):
+    while state:
+        dt = clock.tick() / 1000
+        # event loop
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            if event.type == star_event:
+                for _ in range(16):
+                    Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, 0)), star_surf)
+            if event.type == meteor_event:
+                x, y = randint(0, WINDOW_WIDTH), randint(-200, -100)
+                meteor = Meteor(meteor_surf, (x, y), (all_sprites, meteor_sprites))
+                all_sprites.change_layer(meteor, 1)
+
+        # update
+        all_sprites.update(dt)
+        state = collisions()
+
+        # draw the game
+        screen.fill('#3a2e3f')
+        display_score(pygame.time.get_ticks() // 100)
+        all_sprites.draw(screen)
+
+
+        pygame.display.flip()
+
+def over(boom, score, frame):
+    while True:
+        dt = clock.tick() / 1000
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+        
+        # update
+        boom += 40 * dt
+        if boom < 100:
+            Explosion(explosion_frames, (randint(0, WINDOW_WIDTH),randint(0,WINDOW_HEIGHT)), final_boom)
+            explosion_sound.play()
+
+        final_boom.update(dt)
+
+        # draw game_over screen
+        # screen.fill('#3a2e3f')
+        screen.blit(pygame.transform.grayscale(frame), (0,0))
+        final_boom.draw(screen)
+        display_score(score)
+        display_game_over()
+
+        pygame.display.flip()
 
 # general setup
 pygame.init()
@@ -188,57 +239,13 @@ star_event = pygame.event.custom_type()
 pygame.time.set_timer(star_event, 1500)
 
 while running:
-    dt = clock.tick() / 1000
-    # event loop
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == star_event:
-            for _ in range(16):
-                Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, 0)), star_surf)
-        if event.type == meteor_event:
-            x, y = randint(0, WINDOW_WIDTH), randint(-200, -100)
-            meteor = Meteor(meteor_surf, (x, y), (all_sprites, meteor_sprites))
-            all_sprites.change_layer(meteor, 1)
+    game(True)
 
-    # update
-    all_sprites.update(dt)
-    collisions()
+    pygame.mixer.stop()
+    final_explosion = 0
+    score = pygame.time.get_ticks() // 100
+    frozen_frame = screen.copy()
 
-    # draw the game
-    screen.fill('#3a2e3f')
-    display_score(pygame.time.get_ticks() // 100)
-    all_sprites.draw(screen)
-
-
-    pygame.display.flip()
-
-pygame.mixer.stop()
-final_explosion = 0
-score = pygame.time.get_ticks() // 100
-frozen_frame = screen.copy()
-
-while not running:
-    dt = clock.tick() / 1000
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = True
-    
-    # update
-    final_explosion += 40 * dt
-    if final_explosion < 100:
-        Explosion(explosion_frames, (randint(0, WINDOW_WIDTH),randint(0,WINDOW_HEIGHT)), final_boom)
-        explosion_sound.play()
-
-    final_boom.update(dt)
-
-    # draw game_over screen
-    # screen.fill('#3a2e3f')
-    screen.blit(pygame.transform.grayscale(frozen_frame), (0,0))
-    final_boom.draw(screen)
-    display_score(score)
-    display_game_over()
-
-    pygame.display.flip()
+    running = over(final_explosion, score, frozen_frame)
 
 pygame.quit()

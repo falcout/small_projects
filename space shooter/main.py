@@ -90,6 +90,19 @@ class Meteor(pygame.sprite.Sprite):
         self.image = pygame.transform.rotozoom(self.original_surf, self.rotation, 1)
         self.rect = self.image.get_frect(center = self.rect.center)
 
+class Heart(pygame.sprite.Sprite):
+    def __init__(self, surf, pos, groups):
+        super().__init__(groups)
+        self.image = pygame.transform.smoothscale_by(surf, 0.16)
+        self.rect = self.image.get_frect(center = pos)
+        self.direction = pygame.Vector2(uniform(-0.5,0.5),1)
+        self.speed = randint(400, 700)
+
+    def update(self, dt):
+        self.rect.center += self.direction * self.speed * dt
+        if self.rect.top > WINDOW_HEIGHT:
+            self.kill()
+
 class Explosion(pygame.sprite.Sprite):
     def __init__(self, frames, pos, groups):
         super().__init__(groups)
@@ -105,9 +118,32 @@ class Explosion(pygame.sprite.Sprite):
         else:
             self.kill()
 
+class Health(pygame.sprite.Sprite):
+    def __init__(self, surf, life, groups):
+        super().__init__()
+        groups[0].add(self, layer=1)
+        groups[1].add(self)
+        self.image = pygame.transform.smoothscale_by(surf, 0.05)
+        self.rect = self.image.get_frect(midtop = (WINDOW_WIDTH / 2, WINDOW_HEIGHT - 40))
+        self.number = life
+        self.direction = 0
+
+    def update(self, dt):
+        if self.number > 1:
+            if self.number % 2 == 0:
+                self.direction = -1 * (self.number / 2)
+            else:
+                self.direction = (self.number-1) / 2
+            self.rect = self.image.get_frect(midtop = ((WINDOW_WIDTH / 2) + 30 * self.direction, WINDOW_HEIGHT - 40))
+
 def collisions():
     collision_sprites = pygame.sprite.spritecollide(player, meteor_sprites, True, pygame.sprite.collide_mask)
     if collision_sprites:
+        for life in health_sprites:
+            if life.number == player.life:
+                if player.life > 3:
+                    life.kill()
+                life.image = pygame.transform.smoothscale_by(health_image, 0.05)
         damage_sound.play()
         player.life -= 1
     if player.life == 0:
@@ -120,6 +156,11 @@ def collisions():
             laser.kill()
             Explosion(explosion_frames, laser.rect.midtop, all_sprites)
             explosion_sound.play()
+
+    if pygame.sprite.spritecollide(player, heart_sprites, True, pygame.sprite.collide_mask):
+        player.life += 1
+        Health(health_black_image, player.life, (all_sprites, health_sprites))
+
 
     return True
 
@@ -211,6 +252,10 @@ def game(state, start, color):
                 color = color_fill(color, target=tar)
                 if color == tar:
                     trigger_color = False
+
+            if event.type == heart_event:
+                Heart(health_red_image, (randint(0, WINDOW_WIDTH), randint(-200, -100)), (all_sprites, heart_sprites))
+                pygame.time.set_timer(heart_event, randint(5_000, 50_000))
                 
 
         # update
@@ -281,6 +326,9 @@ laser_surf = pygame.image.load(join('images', 'laser.png')).convert_alpha()
 explosion_frames = [pygame.image.load(join('images', 'explosion', f'{i}.png')).convert_alpha() for i in range(21)]
 font = pygame.font.Font(join('images', 'Oxanium-Bold.ttf'), 40)
 buttom_font = pygame.font.Font(join('images', 'Oxanium-Bold.ttf'), 30)
+health_image = pygame.image.load(join('images', 'health.png')).convert_alpha()
+health_black_image = pygame.image.load(join('images', 'health-black.png')).convert_alpha()
+health_red_image = pygame.image.load(join('images', 'health-red.png')).convert_alpha()
 
 laser_sound = pygame.mixer.Sound(join('audio', 'laser.wav'))
 laser_sound.set_volume(0.5)
@@ -302,15 +350,22 @@ pygame.time.set_timer(level_event, 10_000)
 color_event = pygame.event.custom_type()
 pygame.time.set_timer(color_event, 50)
 
+heart_event = pygame.event.custom_type()
+pygame.time.set_timer(heart_event, randint(5_000, 50_000))
+
 while running:
     # sprites
     all_sprites = pygame.sprite.LayeredUpdates()
     meteor_sprites = pygame.sprite.Group()
     laser_sprites = pygame.sprite.Group()
     final_boom = pygame.sprite.Group()
+    health_sprites = pygame.sprite.Group()
+    heart_sprites = pygame.sprite.Group()
     for _ in range(30):
         Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, WINDOW_HEIGHT)), star_surf)
     player = Player(all_sprites)
+    for i in range(player.life):
+        Health(health_black_image, i+1, (all_sprites, health_sprites))
 
     # reset sound
     pygame.mixer.stop()

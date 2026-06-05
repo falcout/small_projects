@@ -47,11 +47,11 @@ class Player(pygame.sprite.Sprite):
         self.laser_timer()
 
 class Star(pygame.sprite.Sprite):
-    def __init__(self, groups, pos, surf):
+    def __init__(self, groups, pos, surf, speed=500):
         super().__init__(groups)
         self.image = surf
         self.rect = self.image.get_frect(center = pos)
-        self.speed = 500
+        self.speed = speed
     
     def update(self, dt):
         self.rect.center += pygame.Vector2(0,1) * self.speed * dt
@@ -70,7 +70,7 @@ class Laser(pygame.sprite.Sprite):
             self.kill()
 
 class Meteor(pygame.sprite.Sprite):
-    def __init__(self, surf, pos, groups):
+    def __init__(self, surf, pos, groups, offsets):
         super().__init__(groups)
         self.original_surf = surf
         self.image = surf
@@ -78,9 +78,9 @@ class Meteor(pygame.sprite.Sprite):
         self.spawn_time = pygame.time.get_ticks()
         self.lifetime = 3000
         self.direction = pygame.Vector2(uniform(-0.5, 0.5),1)
-        self.speed = randint(400,500)
+        self.speed = randint(400 + offsets[0], 500 + offsets[0])
         self.rotation = 0
-        self.rspeed = randint(40,200)
+        self.rspeed = randint(40 + offsets[1], 200 + offsets[1])
 
     def update(self, dt):
         self.rect.center += self.direction * self.speed * dt
@@ -160,23 +160,53 @@ def game(state, start, color):
 
     level = 0
 
+    meteor_timer = 500
+    meteor_speed_offset = 0
+    meteor_rotation_offset = 0
+
+    star_speed = 400
+    star_height = 0 - WINDOW_HEIGHT
+    star_range = 16
+
     while state:
         dt = clock.tick() / 1000
         # event loop
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return True
+            
             if event.type == star_event:
-                for _ in range(16):
-                    Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(-WINDOW_HEIGHT, 0)), star_surf)
+                if level % 10 == 0:
+                    star_speed += 100
+                    if level % 50 == 0:
+                        star_height *= 1.5
+                        star_range += 5
+                    for _ in range(star_range):
+                        Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(int(star_height), 0)), star_surf, star_speed)                        
+                else:
+                    for _ in range(star_range):
+                        Star(all_sprites, (randint(0, WINDOW_WIDTH), randint(int(star_height), 0)), star_surf, star_speed)
+
             if event.type == meteor_event:
                 x, y = randint(0, WINDOW_WIDTH), randint(-200, -100)
-                meteor = Meteor(meteor_surf, (x, y), (all_sprites, meteor_sprites))
+                meteor = Meteor(meteor_surf, (x, y), (all_sprites, meteor_sprites), (meteor_speed_offset, meteor_rotation_offset))
                 all_sprites.change_layer(meteor, 1)
+                if level % 5 == 0 and meteor_timer > 100:
+                    meteor_timer *= 1-(level/200)
+                    pygame.time.set_timer(meteor_event, int(meteor_timer))
+
             if event.type == level_event:
+                level+=1
                 tar = colors[level]
                 trigger_color = True
-                level+=1
+                if sum(tar[:3]) < 300:
+                    meteor_speed_offset += 5
+                else:
+                    meteor_rotation_offset += 2
+
+                if level % 5 == 0 and player.cooldown_duration > 100:
+                    player.cooldown_duration -= 150
+                    
             if event.type == color_event and trigger_color:
                 color = color_fill(color, target=tar)
                 if color == tar:
@@ -208,7 +238,7 @@ def over(boom, frame):
                     return True
                 if quit.collidepoint(event.pos):
                     return False
-            if event.type == pygame.KEYDOWN and (event.key == pygame.K_SPACE or event.key == pygame.K_RETURN):
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
                 return True
         
         # update

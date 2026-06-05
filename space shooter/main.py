@@ -34,9 +34,9 @@ class Player(pygame.sprite.Sprite):
         self.direction.y = keys[pygame.K_DOWN] - keys[pygame.K_UP]
         self.direction = self.direction.normalize() if self.direction else self.direction
         self.rect.center += self.direction * self.speed * dt
-        if self.rect.centery > WINDOW_HEIGHT:
+        if self.rect.centery > WINDOW_HEIGHT or self.rect.centery < 0 or self.rect.centerx > WINDOW_WIDTH or self.rect.centerx < 0:
             self.rect.center -= self.direction * self.speed * dt
-
+            
         recent_keys = pygame.key.get_just_pressed()
         if recent_keys[pygame.K_SPACE] and self.can_shoot:
             Laser(laser_surf, self.rect.midtop, (all_sprites, laser_sprites))
@@ -159,7 +159,12 @@ def collisions():
 
     if pygame.sprite.spritecollide(player, heart_sprites, True, pygame.sprite.collide_mask):
         player.life += 1
-        Health(health_black_image, player.life, (all_sprites, health_sprites))
+        if player.life > 3:
+            Health(health_black_image, player.life, (all_sprites, health_sprites))
+        else:
+            for life in health_sprites:
+                if life.number == player.life:
+                    life.image = pygame.transform.smoothscale_by(health_black_image, 0.05)
 
 
     return True

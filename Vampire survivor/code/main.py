@@ -97,12 +97,16 @@ class Game:
                 if collision_sprites:
                     self.impact_sound.play()
                     for sprite in collision_sprites:
-                        sprite.destroy()
+                        if sprite.death_time == 0:
+                            sprite.destroy()
                     bullet.kill()
 
     def player_collision(self):
-        if pygame.sprite.spritecollide(self.player, self.enemy_sprites, False, pygame.sprite.collide_mask):
-            self.running = False
+        collision_sprites = pygame.sprite.spritecollide(self.player, self.enemy_sprites, False, pygame.sprite.collide_mask)
+        if collision_sprites:
+            for sprite in collision_sprites:
+                if sprite.death_time == 0:
+                    self.running = False
 
     def run(self):
         while self.running:

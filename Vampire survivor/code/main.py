@@ -113,7 +113,9 @@ class Game:
                 if event.type == pygame.QUIT:
                     self.running = False
                 if event.type == self.enemy_event:
-                    Enemy(choice(self.spawn_positions), choice(list(self.enemy_frames.values())), (self.all_sprites, self.enemy_sprites), self.player, self.collision_sprites)
+                    spawn = [position for position in self.spawn_positions if pygame.Vector2(position).distance_to(self.player.rect.center) > 500]
+                    if spawn:
+                        Enemy(choice(spawn), choice(list(self.enemy_frames.values())), (self.all_sprites, self.enemy_sprites), self.player, self.collision_sprites)
 
             # update
             self.gun_timer()

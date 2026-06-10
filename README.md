@@ -1,3 +1,3 @@
 # Small Projects
 
-This is just a collection of small projects that I build on a daily basis either to help me or to improve my abilities.
+A collection of small projects that I build regularly, either to assist me or to sharpen my skills.
